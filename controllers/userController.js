@@ -1,70 +1,7 @@
 const userModel = require("../model/userModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-exports.createAdmin = async (req, res, next) => {
-  try {
-    var fname = req.body.firstName;
-    var lname = req.body.lastName;
-    var email = req.body.email;
-    var password = req.body.password;
-    var confirmPassword = req.body.confirmPassword;
-    var age = req.body.age;
-    var dob = req.body.dob;
-    var gender = req.body.gender;
-    var address = req.body.address;
-    var role = "admin";
-    var result = await userModel.findOne({ email: email });
-    if (result) {
-      return res.json({
-        status: false,
-        message: "Admin Already Registered",
-      });
-    }
-    if (password == confirmPassword) {
-      bcrypt
-        .hash(password, 12)
-        .then((hashedPassword) => {
-          var user = new userModel({
-            email: email,
-            firstName: fname,
-            lastName: lname,
-            password: hashedPassword,
-            age: age,
-            dob: dob,
-            gender: gender,
-            address: address,
-            role: role,
-            agent: [],
-          });
-          return user.save();
-        })
-        .then(() => {
-          return res.json({
-            status: true,
-            message: "Admin Registered Sucessfully",
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-          return res.json({
-            status: false,
-            message: err.message,
-          });
-        });
-    } else {
-      return res.json({
-        status: false,
-        message: "Password Not Matched",
-      });
-    }
-  } catch (err) {
-    console.log(err);
-    return res.json({
-      status: false,
-      message: err.message,
-    });
-  }
-};
+const { token } = require("morgan");
 
 exports.adminLogin = async (req, res, next) => {
   try {
@@ -86,14 +23,6 @@ exports.adminLogin = async (req, res, next) => {
         const token = jwt.sign(
           {
             email: result.email,
-            firstName: result.firstName,
-            lastName: result.lastName,
-            dob: result.dob,
-            age: result.age,
-            gender: result.gender,
-            address: result.address,
-            agent: result.agent,
-            role: result.role,
           },
           process.env.JWT_KEY,
           {
@@ -195,8 +124,70 @@ exports.createAgent = async (req, res, next) => {
   }
 };
 
+exports.agentLogin = async (req, res, next) => {
+  try {
+    var result = await userModel.findOne({
+      "agent.email": req.body.agentEmail,
+    });
+    if (!result) {
+      return res.status(401).json({
+        status: false,
+        message: "Auth failed",
+      });
+    }
+    for (var i = 0; i < result.agent.length; i++) {
+      if (result.agent[i].email == req.body.agentEmail) {
+        bcrypt.compare(
+          req.body.password,
+          result.agent[i].password,
+          (err, passed) => {
+            if (passed) {
+              auth = true;
+              var token = jwt.sign(
+                {
+                  email: result.agent[i].email,
+                },
+                process.env.JWT_KEY,
+                {
+                  expiresIn: "1h",
+                }
+              );
+              return res.json({
+                status: true,
+                message: "Auth Sucessful",
+                token: token,
+              });
+            }
+          }
+        );
+      }
+      break;
+    }
+  } catch (err) {
+    console.log(err);
+    return res.json({
+      status: false,
+      message: err.message,
+    });
+  }
+};
+
 exports.viewAgent = async (req, res, next) => {
   try {
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+    if (req.query.adminEmail == decoded.email) {
+      var admin = await userModel.findOne({ email: req.query.adminEmail });
+      return res.status(200).json({
+        status: true,
+        agent: admin.agent,
+      });
+    } else {
+      return res.status(401).json({
+        status: false,
+        message: "Auth Failed",
+      });
+    }
   } catch (err) {
     console.log(err);
     return res.json({
@@ -208,6 +199,75 @@ exports.viewAgent = async (req, res, next) => {
 
 exports.createSite = async (req, res, next) => {
   try {
+    var fname = req.body.firstName;
+    var lname = req.body.lastName;
+    var email = req.body.email;
+    var password = req.body.password;
+    var confirmPassword = req.body.confirmPassword;
+    var age = req.body.age;
+    var dob = req.body.dob;
+    var gender = req.body.gender;
+    var address = req.body.address;
+    var role = "site";
+    var sitematchFound = false;
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+
+    if (req.query.agentEmail == decoded.email) {
+      var findsite = await userModel.findOne({
+        "agent.site.email": email,
+      });
+
+      if (findsite) {
+        return res.status(200).json({
+          status: false,
+          message: "site Already Created",
+        });
+      }
+
+      if (password == confirmPassword) {
+        bcrypt.hash(password, 12).then((hashedPassword) => {
+          var site = {
+            email: email,
+            firstName: fname,
+            lastName: lname,
+            password: hashedPassword,
+            age: age,
+            dob: dob,
+            gender: gender,
+            address: address,
+            role: "site",
+            cashier: [],
+          };
+
+          userModel
+            .update(
+              { "agent.email": req.query.agentEmail },
+              {
+                $push: {
+                  "agent.$.site": site,
+                },
+              }
+            )
+            .then((resul) => {
+              return res.status(201).json({
+                status: true,
+                message: "site Created",
+              });
+            });
+        });
+      } else {
+        return res.json({
+          status: false,
+          message: "Password Not Matched",
+        });
+      }
+    } else {
+      return res.status(401).json({
+        status: false,
+        message: "Auth Failed",
+      });
+    }
   } catch (err) {
     console.log(err);
     return res.json({
@@ -219,6 +279,86 @@ exports.createSite = async (req, res, next) => {
 
 exports.viewSite = async (req, res, next) => {
   try {
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+    if (req.query.agentEmail == decoded.email) {
+      var agentdata = await userModel.findOne({
+        "agent.email": req.query.agentEmail,
+      });
+      var obj = {};
+      for (var i = 0; i < agentdata.agent.length; i++) {
+        if (agentdata.agent[i].email == req.query.agentEmail) {
+          obj = agentdata.agent[i].site;
+        }
+      }
+
+      return res.status(200).json({
+        status: true,
+        site: obj,
+      });
+    } else {
+      return res.status(401).json({
+        status: false,
+        message: "Auth Failed",
+      });
+    }
+  } catch (err) {
+    console.log(err);
+    return res.json({
+      status: false,
+      message: err.message,
+    });
+  }
+};
+
+exports.siteLogin = async (req, res, next) => {
+  try {
+    var siteEmail = req.body.siteEmail;
+    var sitePassword = req.body.password;
+    var adminData = await userModel.findOne({ "agent.site.email": siteEmail });
+    if (!adminData) {
+      return res.status(401).json({
+        status: false,
+        message: "Auth failed",
+      });
+    }
+    for (var i = 0; i < adminData.agent.length; i++) {
+      for (var j = 0; j < adminData.agent[i].site.length; j++) {
+        if (adminData.agent[i].site[j].email == siteEmail) {
+          bcrypt.compare(
+            sitePassword,
+            adminData.agent[i].site[j].password,
+            (err, passed) => {
+              if (passed) {
+                console.log(passed);
+                found = true;
+                var token = jwt.sign(
+                  {
+                    email: siteEmail,
+                  },
+                  process.env.JWT_KEY,
+                  {
+                    expiresIn: "1h",
+                  }
+                );
+                return res.json({
+                  status: true,
+                  message: "Auth Sucessful",
+                  token: token,
+                });
+              }
+            }
+          );
+          break;
+        }
+      }
+    }
+    // setTimeout(function () {
+    //   res.json({
+    //     status: false,
+    //     message: "Auth failed",
+    //   });
+    // }, 3000);
   } catch (err) {
     console.log(err);
     return res.json({
@@ -230,6 +370,73 @@ exports.viewSite = async (req, res, next) => {
 
 exports.createCashier = async (req, res, next) => {
   try {
+    var fname = req.body.firstName;
+    var lname = req.body.lastName;
+    var email = req.body.email;
+    var password = req.body.password;
+    var confirmPassword = req.body.confirmPassword;
+    var age = req.body.age;
+    var dob = req.body.dob;
+    var gender = req.body.gender;
+    var address = req.body.address;
+    var role = "cashier";
+
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+    if (req.query.siteEmail == decoded.email) {
+      var findcashier = await userModel.findOne({
+        "agent.site.cashier.email": email,
+      });
+
+      if (findcashier) {
+        return res.status(200).json({
+          status: false,
+          message: "cashier Already Created",
+        });
+      }
+      if (password == confirmPassword) {
+        bcrypt.hash(password, 12).then((hashedPassword) => {
+          var cashier = {
+            email: email,
+            firstName: fname,
+            lastName: lname,
+            password: hashedPassword,
+            age: age,
+            dob: dob,
+            gender: gender,
+            address: address,
+            role: "cashier",
+          };
+
+          userModel
+            .update(
+              { "agent.site.email": req.query.siteEmail },
+              {
+                $push: {
+                  "agent.$.site.$[i].cashier": cashier,
+                },
+              },
+              { arrayFilters: [{ "i.email": req.query.siteEmail }] }
+            )
+            .then(() => {
+              return res.status(201).json({
+                status: true,
+                message: "site Created",
+              });
+            });
+        });
+      } else {
+        return res.json({
+          status: false,
+          message: "Password Not Matched",
+        });
+      }
+    } else {
+      return res.status(401).json({
+        status: false,
+        message: "Auth Failed",
+      });
+    }
   } catch (err) {
     console.log(err);
     return res.json({
@@ -241,6 +448,30 @@ exports.createCashier = async (req, res, next) => {
 
 exports.viewCashier = async (req, res, next) => {
   try {
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+    if (req.query.siteEmail == decoded.email) {
+      var agentdata = await userModel.findOne({
+        "agent.site.email": req.query.siteEmail,
+      });
+      var obj = {};
+      for (var i = 0; i < agentdata.agent.length; i++) {
+        for (var j = 0; j < agentdata.agent[i].site.length; j++)
+          if (agentdata.agent[i].site[j].email == req.query.siteEmail) {
+            obj = agentdata.agent[i].site[j].cashier;
+          }
+      }
+
+      return res.status(200).json({
+        status: true,
+        cashier: obj,
+      });
+    } else {
+      return res.status(401).json({
+        status: false,
+        message: "Auth Failed",
+      });
+    }
   } catch (err) {
     console.log(err);
     return res.json({
