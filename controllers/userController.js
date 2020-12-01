@@ -160,8 +160,8 @@ exports.agentLogin = async (req, res, next) => {
             }
           }
         );
+        break;
       }
-      break;
     }
   } catch (err) {
     console.log(err);
@@ -421,7 +421,7 @@ exports.createCashier = async (req, res, next) => {
             .then(() => {
               return res.status(201).json({
                 status: true,
-                message: "site Created",
+                message: "cashier Created",
               });
             });
         });
