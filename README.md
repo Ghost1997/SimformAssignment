@@ -16,11 +16,11 @@ I am Providing Postman collection for testing it have 9 request
 1. admin login
 2. agent login
 3. site login
-4. create agent(admin can create agent after login, admin need to provide token generated while login in header of this request)
-5. create site(agent can create site after login, agent need to provide token generated while login in header of this request)
-6. create cashier(site can create cashier after login, site need to provide token generated while login in header of this request)
-7. view agent(admin can view all his created agent by provideing token generated while login in header and his email in query param of this request)
-8. view site(agent can view all his created site by provideing token generated while login in header and his email in query param of this request)
-9. view cashier(site can view all his created cashier by provideing token generated while login in header and his email in query param of this request)
+4. create agent (admin can create agent after login, admin need to provide token generated while login in header of this request)
+5. create site (agent can create site after login, agent need to provide token generated while login in header of this request)
+6. create cashier (site can create cashier after login, site need to provide token generated while login in header of this request)
+7. view agent (admin can view all his created agent by provideing token generated while login in header and his email in query param of this request)
+8. view site (agent can view all his created site by provideing token generated while login in header and his email in query param of this request)
+9. view cashier (site can view all his created cashier by provideing token generated while login in header and his email in query param of this request)
 
 Please refer video for better understanding
